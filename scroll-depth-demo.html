@@ -259,7 +259,8 @@
       const tracker = new ScrollDepthTracker({
         debug: true,
         throttleDelay: 200,
-        pages: ["/"],
+        // для локального теста
+        pages: [],
         onGoal(percent, pixelThreshold) {
           // Подсвечиваем соответствующую цель в панели
           console.log(`Цель ${percent}% достигнута!`);
