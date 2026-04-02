@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ScrollDepthTracker — Демо</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #f8f9fa;
+        color: #333;
+      }
+
+      .progress-bar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #4f46e5, #06b6d4);
+        z-index: 9999;
+        transition: width 0.2s ease;
+      }
+
+      .panel {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #fff;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        z-index: 9998;
+        min-width: 240px;
+        font-size: 14px;
+      }
+
+      .panel h3 {
+        margin-bottom: 12px;
+        font-size: 16px;
+        color: #1e1b4b;
+      }
+
+      .goal {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 0;
+        border-bottom: 1px solid #f1f5f9;
+      }
+
+      .goal:last-child {
+        border-bottom: none;
+      }
+
+      .goal-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #e2e8f0;
+        transition: background 0.3s;
+        flex-shrink: 0;
+      }
+
+      .goal-dot.active {
+        background: #22c55e;
+        box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+      }
+
+      .goal-label {
+        color: #94a3b8;
+        transition: color 0.3s;
+      }
+
+      .goal-label.active {
+        color: #1e293b;
+        font-weight: 600;
+      }
+
+      .info {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid #e2e8f0;
+        font-size: 12px;
+        color: #64748b;
+        font-family: "Courier New", monospace;
+        line-height: 1.6;
+      }
+
+      .section {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 40px;
+      }
+
+      .section:nth-child(odd) {
+        background: #fff;
+      }
+      .section:nth-child(even) {
+        background: #f1f5f9;
+      }
+
+      .section-inner {
+        max-width: 700px;
+        text-align: center;
+      }
+
+      .section h2 {
+        font-size: 32px;
+        margin-bottom: 16px;
+        color: #1e1b4b;
+      }
+
+      .section p {
+        font-size: 18px;
+        line-height: 1.7;
+        color: #475569;
+      }
+
+      .hero-section {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #4f46e5, #7c3aed);
+        color: white;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 60px 40px;
+      }
+
+      .hero-section h1 {
+        font-size: 48px;
+        margin-bottom: 16px;
+      }
+
+      .hero-section p {
+        font-size: 20px;
+        opacity: 0.9;
+        max-width: 600px;
+        line-height: 1.6;
+      }
+
+      .badge {
+        display: inline-block;
+        background: rgba(255, 255, 255, 0.2);
+        padding: 6px 16px;
+        border-radius: 20px;
+        font-size: 14px;
+        margin-bottom: 24px;
+      }
+
+      .scroll-hint {
+        margin-top: 40px;
+        font-size: 16px;
+        opacity: 0.7;
+        animation: bounce 2s infinite;
+      }
+
+      @keyframes bounce {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-10px);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hero-section">
+      <div class="badge">ScrollDepthTracker Demo</div>
+      <h1>Прокрутите вниз</h1>
+      <p>
+        Этот лендинг демонстрирует работу скрипта отслеживания процента
+        просмотра страницы. Смотрите на панель справа — цели будут отщёлкиваться
+        по мере прокрутки.
+      </p>
+      <div class="scroll-hint">↓ Прокрутите вниз ↓</div>
+    </div>
+
+    <div class="section">
+      <div class="section-inner">
+        <h2>Раздел 1</h2>
+        <p>
+          Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
+          eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad
+          minim veniam, quis nostrud exercitation ullamco laboris nisi ut
+          aliquip ex ea commodo consequat. Duis aute irure dolor in
+          reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla
+          pariatur.
+        </p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-inner">
+        <h2>Раздел 2</h2>
+        <p>
+          Excepteur sint occaecat cupidatat non proident, sunt in culpa qui
+          officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde
+          omnis iste natus error sit voluptatem accusantium doloremque
+          laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore
+          veritatis et quasi architecto beatae vitae dicta sunt explicabo.
+        </p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-inner">
+        <h2>Раздел 3</h2>
+        <p>
+          Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut
+          fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem
+          sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor
+          sit amet, consectetur, adipisci velit, sed quia non numquam eius modi
+          tempora incidunt ut labore et dolore magnam aliquam quaerat
+          voluptatem.
+        </p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-inner">
+        <h2>Раздел 4</h2>
+        <p>
+          At vero eos et accusamus et iusto odio dignissimos ducimus qui
+          blanditiis praesentium voluptatum deleniti atque corrupti quos dolores
+          et quas molestias excepturi sint occaecati cupiditate non provident,
+          similique sunt in culpa qui officia deserunt mollitia animi, id est
+          laborum et dolorum fuga. Et harum quidem rerum facilis est et expedita
+          distinctio.
+        </p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-inner">
+        <h2>🎉 Конец страницы!</h2>
+        <p>
+          Вы достигли 100%. Если все 5 целей сработали — скрипт работает
+          корректно. Проверьте панель справа — все точки должны быть зелёными.
+        </p>
+      </div>
+    </div>
+
+    <script src="scroll-depth-tracker.js"></script>
+    <script>
+      // --- Запуск ScrollDepthTracker ---
+      const tracker = new ScrollDepthTracker({
+        debug: true,
+        throttleDelay: 200,
+        pages: ["/"],
+        onGoal(percent, pixelThreshold) {
+          // Подсвечиваем соответствующую цель в панели
+          console.log(`Цель ${percent}% достигнута!`);
+        },
+      });
+    </script>
+  </body>
+</html>
