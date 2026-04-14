@@ -1,5 +1,5 @@
 /**
- * ScrollDepthTracker v1.0
+ * ScrollDepthTracker v1.1
  * Универсальный скрипт отслеживания процента просмотра страницы
  *
  * Алгоритм:
@@ -30,9 +30,12 @@ class ScrollDepthTracker {
    *   Примеры: 3600 = 1 час, 86400 = 1 день, 604800 = 1 неделя.
    * @param {Function}   [options.onGoal=null] - Callback: (percent, pixelThreshold) => {}
    * @param {Function}   [options.onAllGoals=null] - Callback при достижении всех целей
-   * @param {number}     [options.throttleDelay=100] - Задержка троттлинга scroll (ms)
+   * @param {number}     [options.throttleDelay=300] - Задержка троттлинга scroll (ms)
    * @param {boolean}    [options.debug=false] - Логи в консоль + визуальная панель
    * @param {boolean}    [options.checkOnLoad=true] - Проверять пороги при загрузке
+   * @param {number}     [options.minTime=2] - Минимальное время на странице до первого goal (секунды)
+   * @param {number}     [options.minScrollEvents=5] - Минимальное количество scroll-событий до первого goal
+   * @param {number}     [options.timeBetweenGoals=0.5] - Минимальное время между consecutive goals (секунды)
    */
   constructor(options = {}) {
     // --- Настройки ---
@@ -42,10 +45,18 @@ class ScrollDepthTracker {
     this.onAllGoals =
       typeof options.onAllGoals === "function" ? options.onAllGoals : null;
     this.ttl = typeof options.ttl === "number" ? options.ttl : 0;
-    this.throttleDelay = options.throttleDelay || 100;
+    this.throttleDelay = options.throttleDelay || 300;
     this.debug = options.debug || false;
     this.checkOnLoad =
       options.checkOnLoad !== undefined ? options.checkOnLoad : true;
+
+    this.minTime = typeof options.minTime === "number" ? options.minTime : 2;
+    this.minScrollEvents =
+      typeof options.minScrollEvents === "number" ? options.minScrollEvents : 5;
+    this.timeBetweenGoals =
+      typeof options.timeBetweenGoals === "number"
+        ? options.timeBetweenGoals
+        : 0.5;
 
     // --- Ключ localStorage ---
     const currentPath = location.pathname.replace(/\/+$/, "") || "/";
@@ -72,6 +83,11 @@ class ScrollDepthTracker {
     this._resizeHandler = this._debouncedCheck.bind(this);
     this._allGoalsFired = false;
     this._sortedPercentages = [...this.percentages].sort((a, b) => a - b);
+
+    this._startTime = Date.now();
+    this._lastGoalTime = 0;
+    this._scrollEventCount = 0;
+    this._listenersReady = false;
 
     // --- Восстановление из localStorage ---
     this._restoreFromStorage();
@@ -183,7 +199,6 @@ class ScrollDepthTracker {
   // ============================
 
   _init() {
-    // Если всё уже достигнуто — не подписываемся на события
     if (this._allGoalsFired) {
       this._log("Все цели были достигнуты ранее — слушатели не установлены");
       if (this.debug) this._createDebugPanel();
@@ -192,8 +207,8 @@ class ScrollDepthTracker {
 
     window.addEventListener("scroll", this._scrollHandler, { passive: true });
     window.addEventListener("resize", this._resizeHandler, { passive: true });
+    this._listenersReady = true;
 
-    // Проверяем при загрузке
     if (this.checkOnLoad) {
       if (document.readyState === "complete") {
         this._check();
@@ -241,6 +256,7 @@ class ScrollDepthTracker {
 
   _onScroll() {
     if (this._allGoalsFired) return;
+    this._scrollEventCount++;
     if (this._throttleTimer) return;
 
     this._throttleTimer = setTimeout(() => {
@@ -270,27 +286,61 @@ class ScrollDepthTracker {
 
     if (pageHeight <= 0) return;
 
+    const now = Date.now();
+    const elapsedSec = (now - this._startTime) / 1000;
+
     for (const percent of this._sortedPercentages) {
       if (this._triggered.has(percent)) continue;
 
       const pixelThreshold = Math.round((pageHeight * percent) / 100);
 
-      if (scrollBottom >= pixelThreshold) {
-        this._triggered.add(percent);
-        this._saveToStorage();
+      if (scrollBottom < pixelThreshold) {
+        if (percent === 100 && scrollBottom >= pixelThreshold - 1) {
+          // 1px tolerance for 100% — scrollBottom редко равен pageHeight точно
+        } else {
+          break;
+        }
+      }
 
-        this._log(
-          `Цель достигнута: ${percent}% (порог: ${pixelThreshold}px, scrollBottom: ${scrollBottom}px)`,
-        );
+      const isFirstGoal = this._triggered.size === 0;
 
-        if (this.debug) this._activateDebugGoal(percent);
-
-        if (this.onGoal) {
-          try {
-            this.onGoal(percent, pixelThreshold);
-          } catch (e) {
-            console.error("[ScrollDepthTracker] Ошибка в onGoal callback:", e);
+      if (isFirstGoal) {
+        if (elapsedSec < this.minTime) {
+          this._log(
+            `Цель ${percent}% заблокирована: прошло ${elapsedSec.toFixed(1)}с, нужно ${this.minTime}с`,
+          );
+          break;
+        }
+        if (this._scrollEventCount < this.minScrollEvents) {
+          this._log(
+            `Цель ${percent}% заблокирована: ${this._scrollEventCount} scroll-событий, нужно ${this.minScrollEvents}`,
+          );
+          break;
+        }
+      } else {
+        if (this.timeBetweenGoals > 0) {
+          const sinceLastGoal = (now - this._lastGoalTime) / 1000;
+          if (sinceLastGoal < this.timeBetweenGoals) {
+            break;
           }
+        }
+      }
+
+      this._triggered.add(percent);
+      this._lastGoalTime = now;
+      this._saveToStorage();
+
+      this._log(
+        `Цель достигнута: ${percent}% (порог: ${pixelThreshold}px, scrollBottom: ${scrollBottom}px)`,
+      );
+
+      if (this.debug) this._activateDebugGoal(percent);
+
+      if (this.onGoal) {
+        try {
+          this.onGoal(percent, pixelThreshold);
+        } catch (e) {
+          console.error("[ScrollDepthTracker] Ошибка в onGoal callback:", e);
         }
       }
     }
@@ -475,12 +525,16 @@ class ScrollDepthTracker {
       }
     });
 
-    document.body.appendChild(panel);
-    document.body.appendChild(toggle);
+    window.addEventListener("DOMContentLoaded", () => {
+      document.body.appendChild(panel);
+      document.body.appendChild(toggle);
 
-    // Подсвечиваем уже достигнутые
-    this._triggered.forEach((pct) => this._activateDebugGoal(pct));
-    this._updateDebugInfo();
+      this._triggered.forEach((pct) => this._activateDebugGoal(pct));
+      this._updateDebugInfo();
+    });
+
+    clearInterval(this._debugInterval);
+    this._debugInterval = setInterval(() => this._updateDebugInfo(), 500);
   }
 
   _activateDebugGoal(percent) {
@@ -505,9 +559,18 @@ class ScrollDepthTracker {
 
     const restored = [...this._triggered].sort((a, b) => a - b);
     const ttlText = this.ttl > 0 ? this.ttl + "s" : "inf";
+    const elapsed = ((Date.now() - this._startTime) / 1000).toFixed(1);
+    const minReady =
+      elapsed >= this.minTime ? "ok" : `${elapsed}/${this.minTime}s`;
+    const scrollsReady =
+      this._scrollEventCount >= this.minScrollEvents
+        ? "ok"
+        : `${this._scrollEventCount}/${this.minScrollEvents}`;
     info.innerHTML =
       `path: ${this._currentPath}<br>` +
       `ttl: ${ttlText}<br>` +
+      `time: ${minReady}<br>` +
+      `scrolls: ${scrollsReady}<br>` +
       `done: [${restored.join(", ")}%]`;
 
     if (badge) {
@@ -543,6 +606,9 @@ class ScrollDepthTracker {
 
     this._triggered.clear();
     this._allGoalsFired = false;
+    this._startTime = Date.now();
+    this._lastGoalTime = 0;
+    this._scrollEventCount = 0;
     this._clearStorage();
     this._check();
 
@@ -565,8 +631,10 @@ class ScrollDepthTracker {
     this._detachListeners();
     clearTimeout(this._throttleTimer);
     clearTimeout(this._debounceTimer);
+    clearInterval(this._debugInterval);
     this._triggered.clear();
     this._allGoalsFired = false;
+    this._scrollEventCount = 0;
 
     const panel = document.getElementById("sdt-panel");
     if (panel) panel.remove();
